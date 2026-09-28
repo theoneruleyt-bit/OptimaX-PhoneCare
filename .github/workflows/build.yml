@@ -18,11 +18,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Android SDK Lisanslarini Kabul Et
+      - name: Gradle 8.7 Indir ve Kur
         run: |
-          yes | sdkmanager --licenses || true
+          curl -sL "https://services.gradle.org/distributions/gradle-8.7-bin.zip" -o gradle.zip
+          unzip -q gradle.zip
 
-      - name: Proje Dosyalarini Otomatik Olustur
+      - name: Proje Dosyalarini Olustur
         run: |
           # 1. settings.gradle.kts
           cat << 'EOF' > settings.gradle.kts
@@ -44,7 +45,7 @@ jobs:
           include(":app")
           EOF
 
-          # 2. build.gradle.kts (kok)
+          # 2. build.gradle.kts
           cat << 'EOF' > build.gradle.kts
           plugins {
               id("com.android.application") version "8.4.2" apply false
@@ -118,7 +119,7 @@ jobs:
           </manifest>
           EOF
 
-          # 5. MainActivity.kt (Arayuz ve Calisan Motor)
+          # 5. MainActivity.kt
           mkdir -p app/src/main/java/com/optimax/phonecare
           cat << 'EOF' > app/src/main/java/com/optimax/phonecare/MainActivity.kt
           package com.optimax.phonecare
@@ -217,10 +218,10 @@ jobs:
                           onClick = {
                               scope.launch {
                                   isScanning = true
-                                  scanText = "Önbellek ve artık dosyalar taranıyor..."
-                                  delay(1200)
-                                  scanText = "Bellek (RAM) optimize ediliyor..."
-                                  delay(1200)
+                                  scanText = "Önbellek dosyaları analiz ediliyor..."
+                                  delay(1000)
+                                  scanText = "RAM ve arka plan yükü dengeleniyor..."
+                                  delay(1000)
                                   junkMb = 0
                                   ramPercent = 48
                                   healthScore = 98
@@ -285,11 +286,9 @@ jobs:
           }
           EOF
 
-      - name: Gradle Wrapper Kur ve APK Derle
+      - name: APK Derle (Assemble Debug)
         run: |
-          gradle wrapper
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradle-8.7/bin/gradle assembleDebug --no-daemon
 
       - name: APK Dosyasini Yukle
         uses: actions/upload-artifact@v4
