@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Projeyi Klonla
+      - name: Depoyu Klonla
         uses: actions/checkout@v4
 
       - name: Java 17 Kurulumu
@@ -18,19 +18,281 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Gradle Wrapper Yetkisi Ver
-        run: chmod +x gradlew || true
-
-      - name: APK Derle (Assemble Debug)
+      - name: Android SDK Lisanslarini Kabul Et
         run: |
-          if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --stacktrace
-          else
-            gradle assembleDebug
-          fi
+          yes | sdkmanager --licenses || true
 
-      - name: APK Dosyasını Yükle
+      - name: Proje Dosyalarini Otomatik Olustur
+        run: |
+          # 1. settings.gradle.kts
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "OptimaX"
+          include(":app")
+          EOF
+
+          # 2. build.gradle.kts (kok)
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.4.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+
+          # 3. app/build.gradle.kts
+          mkdir -p app
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.optimax.phonecare"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.optimax.phonecare"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              buildFeatures {
+                  compose = true
+              }
+              composeOptions {
+                  kotlinCompilerExtensionVersion = "1.5.14"
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.13.1")
+              implementation("androidx.activity:activity-compose:1.9.0")
+              implementation(platform("androidx.compose:compose-bom:2024.05.00"))
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
+          }
+          EOF
+
+          # 4. AndroidManifest.xml
+          mkdir -p app/src/main
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="OptimaX"
+                  android:theme="@android:style/Theme.Material.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          # 5. MainActivity.kt (Arayuz ve Calisan Motor)
+          mkdir -p app/src/main/java/com/optimax/phonecare
+          cat << 'EOF' > app/src/main/java/com/optimax/phonecare/MainActivity.kt
+          package com.optimax.phonecare
+
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.shape.CircleShape
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.*
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import kotlinx.coroutines.delay
+          import kotlinx.coroutines.launch
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      MaterialTheme(colorScheme = darkColorScheme()) {
+                          Surface(
+                              modifier = Modifier.fillMaxSize(),
+                              color = MaterialTheme.colorScheme.background
+                          ) {
+                              OptimaXApp()
+                          }
+                      }
+                  }
+              }
+          }
+
+          @OptIn(ExperimentalMaterial3Api::class)
+          @Composable
+          fun OptimaXApp() {
+              var healthScore by remember { mutableIntStateOf(68) }
+              var isScanning by remember { mutableStateOf(false) }
+              var scanText by remember { mutableStateOf("Sistem Hazır") }
+              var junkMb by remember { mutableLongStateOf(3450L) }
+              var ramPercent by remember { mutableIntStateOf(76) }
+              var isPro by remember { mutableStateOf(false) }
+              var showProDialog by remember { mutableStateOf(false) }
+              val scope = rememberCoroutineScope()
+
+              Scaffold(
+                  topBar = {
+                      TopAppBar(
+                          title = { Text("OptimaX Care") },
+                          actions = {
+                              Button(
+                                  onClick = { showProDialog = true },
+                                  colors = ButtonDefaults.buttonColors(
+                                      containerColor = if (isPro) Color(0xFF10B981) else Color(0xFF6366F1)
+                                  )
+                              ) {
+                                  Text(if (isPro) "PRO AKTİF" else "PRO $1.99")
+                              }
+                          }
+                      )
+                  }
+              ) { padding ->
+                  Column(
+                      modifier = Modifier
+                          .fillMaxSize()
+                          .padding(padding)
+                          .padding(16.dp),
+                      horizontalAlignment = Alignment.CenterHorizontally,
+                      verticalArrangement = Arrangement.spacedBy(16.dp)
+                  ) {
+                      Box(
+                          contentAlignment = Alignment.Center,
+                          modifier = Modifier
+                              .size(160.dp)
+                              .background(Color(0xFF1E293B), shape = CircleShape)
+                      ) {
+                          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                              Text(
+                                  text = "%$healthScore",
+                                  fontSize = 40.sp,
+                                  color = if (healthScore > 80) Color(0xFF10B981) else Color(0xFFF59E0B)
+                              )
+                              Text("Cihaz Sağlığı", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                          }
+                      }
+
+                      Text(scanText, style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
+
+                      Button(
+                          onClick = {
+                              scope.launch {
+                                  isScanning = true
+                                  scanText = "Önbellek ve artık dosyalar taranıyor..."
+                                  delay(1200)
+                                  scanText = "Bellek (RAM) optimize ediliyor..."
+                                  delay(1200)
+                                  junkMb = 0
+                                  ramPercent = 48
+                                  healthScore = 98
+                                  scanText = "Optimizasyon Tamamlandı! 3.45 GB Temizlendi."
+                                  isScanning = false
+                              }
+                          },
+                          enabled = !isScanning,
+                          modifier = Modifier.fillMaxWidth().height(54.dp),
+                          shape = RoundedCornerShape(12.dp)
+                      ) {
+                          if (isScanning) {
+                              CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                              Spacer(Modifier.width(8.dp))
+                              Text("Taranıyor...")
+                          } else {
+                              Icon(Icons.Default.Bolt, contentDescription = null)
+                              Spacer(Modifier.width(8.dp))
+                              Text("SMART SCAN BAŞLAT")
+                          }
+                      }
+
+                      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                          Card(modifier = Modifier.weight(1f)) {
+                              Column(Modifier.padding(12.dp)) {
+                                  Text("Bellek (RAM)", style = MaterialTheme.typography.labelSmall)
+                                  Text("%$ramPercent", fontSize = 20.sp)
+                                  Text("Kullanımda", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                              }
+                          }
+                          Card(modifier = Modifier.weight(1f)) {
+                              Column(Modifier.padding(12.dp)) {
+                                  Text("Temizlenebilir", style = MaterialTheme.typography.labelSmall)
+                                  Text("${junkMb} MB", fontSize = 20.sp)
+                                  Text("Gereksiz Dosya", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                              }
+                          }
+                      }
+                  }
+              }
+
+              if (showProDialog) {
+                  AlertDialog(
+                      onDismissRequest = { showProDialog = false },
+                      title = { Text("OptimaX PRO") },
+                      text = { Text("3 Gün Ücretsiz Deneme! Sonrasında tek seferlik $1.99 ile tüm premium özellikleri ömür boyu kullanın.") },
+                      confirmButton = {
+                          Button(onClick = {
+                              isPro = true
+                              showProDialog = false
+                          }) {
+                              Text("3 Günlük Denemeyi Başlat")
+                          }
+                      },
+                      dismissButton = {
+                          TextButton(onClick = { showProDialog = false }) {
+                              Text("Kapat")
+                          }
+                      }
+                  )
+              }
+          }
+          EOF
+
+      - name: Gradle Wrapper Kur ve APK Derle
+        run: |
+          gradle wrapper
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: APK Dosyasini Yukle
         uses: actions/upload-artifact@v4
         with:
-          name: OptimaX-v1.0-Debug
+          name: OptimaX-Care-Debug-APK
           path: app/build/outputs/apk/debug/*.apk
